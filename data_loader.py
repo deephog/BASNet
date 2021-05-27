@@ -17,9 +17,8 @@ class RescaleT(object):
 		assert isinstance(output_size,(int,tuple))
 		self.output_size = output_size
 
-	def __call__(self,sample):
-		image, label = sample['image'],sample['label']
-
+	def __call__(self, sample):
+		image, label = sample['image'], sample['label']
 		h, w = image.shape[:2]
 
 		if isinstance(self.output_size,int):
@@ -35,8 +34,15 @@ class RescaleT(object):
 		# #resize the image to new_h x new_w and convert image from range [0,255] to [0,1]
 		# img = transform.resize(image,(new_h,new_w),mode='constant')
 		# lbl = transform.resize(label,(new_h,new_w),mode='constant', order=0, preserve_range=True)
-
-		img = transform.resize(image,(self.output_size,self.output_size),mode='constant')
+		#print(h, w)
+		img = transform.resize(image,(self.output_size, self.output_size),mode='constant', anti_aliasing=False)
+		#print('rescale')
+		#print(image[:, :, 0])
+		#print(img[:, :, 0])
+		#print(img[0, :, 0])
+		#print(img[:, 0, 0])
+		
+		
 		lbl = transform.resize(label,(self.output_size,self.output_size),mode='constant', order=0, preserve_range=True)
 
 		return {'image':img,'label':lbl}
@@ -158,6 +164,8 @@ class ToTensorLab(object):
 		self.flag = flag
 
 	def __call__(self, sample):
+		#print('totensor')
+
 
 		image, label = sample['image'], sample['label']
 
@@ -239,18 +247,37 @@ class ToTensorLab(object):
 		#transforms.Normalize(mean = (0.485, 0.456, 0.406), std = (0.229, 0.224, 0.225))
 		tmpImg = tmpImg.transpose((2, 0, 1))
 		tmpLbl = label.transpose((2, 0, 1))
-
+		
 		return {'image': torch.from_numpy(tmpImg),
 			'label': torch.from_numpy(tmpLbl)}
 
+
+class OtherTrans(object):
+
+	def __init__(self, flag=0):
+		self.flag = flag
+
+	def __call__(self, sample):
+		image, label = sample['image'], sample['label']
+
+		FLP = transforms.RandomHorizontalFlip()
+		RPe = transforms.RandomPerspective(distortion_scale=0.1, p=0.5)
+		RRo = transforms.RandomRotation(90)
+		image = RRo(RPe(FLP(image)))
+		#print(np.asarray(image).shape)
+		label = RRo(RPe(FLP(label)))
+		return {'image': image, 'label': label}
+
+
 class SalObjDataset(Dataset):
-	def __init__(self,img_name_list,lbl_name_list,transform=None):
+	def __init__(self,img_name_list,lbl_name_list, img_transform=None, transform=None):
 		# self.root_dir = root_dir
 		# self.image_name_list = glob.glob(image_dir+'*.png')
 		# self.label_name_list = glob.glob(label_dir+'*.png')
 		self.image_name_list = img_name_list
 		self.label_name_list = lbl_name_list
 		self.transform = transform
+		self.img_transform = img_transform
 
 	def __len__(self):
 		return len(self.image_name_list)
@@ -260,16 +287,27 @@ class SalObjDataset(Dataset):
 		# image = Image.open(self.image_name_list[idx])#io.imread(self.image_name_list[idx])
 		# label = Image.open(self.label_name_list[idx])#io.imread(self.label_name_list[idx])
 
-		image = io.imread(self.image_name_list[idx])
+		image = Image.open(self.image_name_list[idx])
 
 		if(0==len(self.label_name_list)):
-			label_3 = np.zeros(image.shape)
+			label = np.zeros(image.shape)
 		else:
-			label_3 = io.imread(self.label_name_list[idx])
+			label = Image.open(self.label_name_list[idx])
 
-		#print("len of label3")
+		#("len of label3")
 		#print(len(label_3.shape))
 		#print(label_3.shape)
+		sample = {'image':image, 'label':label}
+		if self.img_transform:
+			img_sample = self.img_transform(sample)
+			image = img_sample['image']
+			label_3 = img_sample['label']
+		else:
+			image = sample['image']
+			label_3 = sample['label']
+
+		image = np.asarray(image)
+		label_3 = np.asarray(label_3)
 
 		label = np.zeros(label_3.shape[0:2])
 		if(3==len(label_3.shape)):
@@ -296,5 +334,6 @@ class SalObjDataset(Dataset):
 
 		if self.transform:
 			sample = self.transform(sample)
+
 
 		return sample
