@@ -7,7 +7,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms#, utils
-from torchvision import models
 # import torch.optim as optim
 
 import numpy as np
@@ -22,7 +21,7 @@ from data_loader import ToTensorLab
 from data_loader import SalObjDataset
 
 from model import BASNet
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 
 def normPRED(d):
 	ma = torch.max(d)
@@ -61,14 +60,14 @@ if __name__ == '__main__':
 	
 	image_dir = './test_data/test_images/'
 	prediction_dir = './test_data/test_results/'
-	model_dir = './saved_models/basnet_bsi/basnet_time.pth'
+	model_dir = './saved_models/basnet_bsi/basnet_411.pth'
 	
 	img_name_list = glob.glob(image_dir + '*.jpg')
 	
 	# --------- 2. dataloader ---------
 	#1. dataload
-	test_salobj_dataset = SalObjDataset(img_name_list = img_name_list, lbl_name_list = [],transform=transforms.Compose([RescaleT(224),ToTensorLab(flag=0)]))
-	test_salobj_dataloader = DataLoader(test_salobj_dataset, batch_size=4,shuffle=False,num_workers=1)
+	test_salobj_dataset = SalObjDataset(img_name_list = img_name_list, lbl_name_list = [],transform=transforms.Compose([RescaleT(256),ToTensorLab(flag=0)]))
+	test_salobj_dataloader = DataLoader(test_salobj_dataset, batch_size=1,shuffle=False,num_workers=1)
 	
 	# --------- 3. model define ---------
 	print("...load BASNet...")
@@ -78,16 +77,13 @@ if __name__ == '__main__':
 		net.cuda()
 	net.eval()
 	scriptedmodel = torch.jit.script(net)
-	torch.jit.save(scriptedmodel, 'scripted_BASNet_time.pt')
+	torch.jit.save(scriptedmodel, 'scripted_BASNet_d2.pt')
 	
 	#example = torch.rand(1, 3, 256, 256).cuda()
 	#traced_script_module = torch.jit.trace(net, example)
 	#traced_script_module.save("traced_model_BASNet.pt")
-	net = torch.load('scripted_BASNet_time.pt')
-	#net = models.resnet18(pretrained=True)
+	net = torch.load('scripted_BASNet_d2.pt')
 	net.eval()
-
-
 	
 	# --------- 4. inference for each image ---------
 	for i_test, data_test in enumerate(test_salobj_dataloader):
@@ -118,16 +114,16 @@ if __name__ == '__main__':
 		#d1 = d1.cpu() 
 		print(time.time()-start)
 		
-		#print(d1.shape)
+		print(d1.shape)
 		#traced_script_module = torch.jit.trace(net, inputs_test)
 		#traced_script_module.save("traced_model_BASNet.pt")
 	
 		# normalization
 		#d1 = torch.nn.functional.sigmoid(d1)
 		#pred = d1[:,0,:,:]
-		#pred = normPRED(d1)
+		pred = normPRED(d1)
 	
 		# save results to test_results folder
-		#save_output(img_name_list[i_test],pred,prediction_dir)
+		save_output(img_name_list[i_test],pred,prediction_dir)
 	
 		#del d1,d2,d3,d4,d5,d6,d7,d8

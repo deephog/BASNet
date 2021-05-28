@@ -12,6 +12,7 @@ import torchvision.transforms as standard_transforms
 import numpy as np
 import sys
 import glob
+import time
 
 from data_loader import Rescale
 from data_loader import RescaleT
@@ -20,6 +21,8 @@ from data_loader import CenterCrop
 from data_loader import ToTensor
 from data_loader import ToTensorLab
 from data_loader import SalObjDataset
+
+from skimage import io
 
 from model import BASNet
 
@@ -60,7 +63,7 @@ def muti_bce_loss_fusion( d1, d2, d3, d4, d5, d6, labels_v):
     loss = loss1 + loss2 + loss3 + loss4 + loss5 + loss6#+ 5.0*lossa
     # print("l0: %3f, l1: %3f, l2: %3f, l3: %3f, l4: %3f, l5: %3f, l6: %3f\n"%(loss0.data[0],loss1.data[0],loss2.data[0],loss3.data[0],loss4.data[0],loss5.data[0],loss6.data[0]))
     # print("BCE: l1:%3f, l2:%3f, l3:%3f, l4:%3f, l5:%3f, la:%3f, all:%3f\n"%(loss1.data[0],loss2.data[0],loss3.data[0],loss4.data[0],loss5.data[0],lossa.data[0],loss.data[0]))
-    print("l0: %3f, l1: %3f, l2: %3f, l3: %3f, l4: %3f, l5: %3f\n" % (loss1.item(), loss2.item(), loss3.item(), loss4.item(), loss5.item(), loss6.item()))
+    #print("\r l0: %3f, l1: %3f, l2: %3f, l3: %3f, l4: %3f, l5: %3f" % (loss1.item(), loss2.item(), loss3.item(), loss4.item(), loss5.item(), loss6.item()))
     return loss1, loss
 
 
@@ -73,8 +76,11 @@ tra_label_dir = 'DUTS/DUTS-TR/mask/'
 te_image_dir = 'DUTS/DUTS-TE/image/'
 te_label_dir = 'DUTS/DUTS-TE/mask/'
 
-#tra_image_dir = 'dummy_img/'
-#tra_label_dir = 'dummy_gt/'
+# tra_image_dir = 'dummy_img/'
+# tra_label_dir = 'dummy_gt/'
+#
+# te_image_dir = 'dummy_img/'
+# te_label_dir = 'dummy_gt/'
 
 image_ext = '.jpg'
 label_ext = '.png'
@@ -82,15 +88,13 @@ label_ext = '.png'
 model_dir = "./saved_models/basnet_bsi/"
 
 epoch_num = 1000
-batch_size_train = 16
-batch_size_val = 1
+batch_size_train = 128
+batch_size_val = 128
 train_num = 0
 val_num = 0
 
 tra_img_name_list = glob.glob(data_dir + tra_image_dir + '*' + image_ext)
 te_img_name_list = glob.glob(data_dir + te_image_dir + '*' + image_ext)
-
-#print(len(tra_img_name_list))
 
 tra_lbl_name_list = []
 te_lbl_name_list = []
@@ -138,8 +142,8 @@ salobj_dataset = SalObjDataset(
     ]))
 
 salobj_dataset_te = SalObjDataset(
-    img_name_list=tra_img_name_list,
-    lbl_name_list=tra_lbl_name_list,
+    img_name_list=te_img_name_list,
+    lbl_name_list=te_lbl_name_list,
     transform=transforms.Compose([
         RescaleT(224),
         #RandomCrop(224),
@@ -156,7 +160,7 @@ if torch.cuda.is_available():
 
 # ------- 4. define optimizer --------
 print("---define optimizer...")
-optimizer = optim.Adam(net.parameters(), lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
+optimizer = optim.Adam(net.parameters(), lr=0.002, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01)
 
 # ------- 5. training process --------
 print("---start training...")
@@ -167,13 +171,23 @@ ite_num4val = 0
 
 for epoch in range(0, epoch_num):
     net.train()
+    start_time = time.time()
 
     for i, data in enumerate(salobj_dataloader):
+        if not i == 0:
+            sys.stdout.write("\033[F")
+            sys.stdout.write("\033[K")
 
         ite_num = ite_num + 1
         ite_num4val = ite_num4val + 1
 
         inputs, labels = data['image'], data['label']
+
+        # print(inputs.shape)
+        #
+        # io.imsave('temp.jpg', inputs[0, 0, :, :]*255)
+        # io.imsave('temp.png', labels[0, 0, :, :]*255)
+        # input('wait')
 
         inputs = inputs.type(torch.FloatTensor)
         labels = labels.type(torch.FloatTensor)
@@ -202,51 +216,63 @@ for epoch in range(0, epoch_num):
         # del temporary outputs and loss
         del d0, d1, d2, d3, d4, d5, loss2, loss
 
-        print("[epoch: %3d/%3d, batch: %5d/%5d, ite: %d] train loss: %3f, tar: %3f " % (
+        print("[epoch: %3d/%3d, batch: %5d/%5d, ite: %d] train loss: %3f, tar: %3f , time_lapse: %3f" % (
             epoch + 1, epoch_num, (i + 1) * batch_size_train, train_num, ite_num, running_loss / ite_num4val,
-            running_tar_loss / ite_num4val))
-        sys.stdout.flush()
+            running_tar_loss / ite_num4val, time.time()-start_time))
 
-        if ite_num % 2000 == 1:  # save model every 2000 iterations
-            # basnet_bsi_itr_%d_train_%3f_tar_%3f.pth basnet_time.pth
-            # torch.save(net.state_dict(), model_dir + "basnet_bsi_itr_%d_train_%3f_tar_%3f.pth" % (ite_num, running_loss / ite_num4val, running_tar_loss / ite_num4val))
 
-            net.eval()
-            torch.save(net.state_dict(), model_dir + "basnet_bsi_itr_%d_train_%3f_tar_%3f.pth")
-            running_loss = 0.0
-            running_tar_loss = 0.0
-            net.train()  # resume train
-            ite_num4val = 0
 
-    net.eval()
-    ind_v = 0
-    running_loss_v = 0.0
-    running_tar_loss_v = 0.0
-    for i, data in enumerate(salobj_dataloader_te):
-        ind_v += 1
-        inputs, labels = data['image'], data['label']
+    if epoch % 10 == 1:  # save model every 2000 iterations
+        # basnet_bsi_itr_%d_train_%3f_tar_%3f.pth basnet_time.pth
+        # torch.save(net.state_dict(), model_dir + "basnet_bsi_itr_%d_train_%3f_tar_%3f.pth" % (ite_num, running_loss / ite_num4val, running_tar_loss / ite_num4val))
 
-        inputs = inputs.type(torch.FloatTensor)
-        labels = labels.type(torch.FloatTensor)
+        net.eval()
+        ind_v = 0
+        running_loss_v = 0.0
+        running_tar_loss_v = 0.0
+        for i, data in enumerate(salobj_dataloader_te):
+            if not i == 0:
+                sys.stdout.write("\033[F")
+                sys.stdout.write("\033[K")
+            ind_v += 1
+            inputs, labels = data['image'], data['label']
 
-        # wrap them in Variable
-        if torch.cuda.is_available():
-            inputs_v, labels_v = Variable(inputs.cuda(), requires_grad=False), Variable(labels.cuda(),
-                                                                                        requires_grad=False)
-        else:
-            inputs_v, labels_v = Variable(inputs, requires_grad=False), Variable(labels, requires_grad=False)
+            inputs = inputs.type(torch.FloatTensor)
+            labels = labels.type(torch.FloatTensor)
 
-        d0, d1, d2, d3, d4, d5 = net(inputs_v)
-        loss2, loss = muti_bce_loss_fusion(d0, d1, d2, d3, d4, d5, labels_v)
+            # wrap them in Variable
+            if torch.cuda.is_available():
+                inputs_v, labels_v = Variable(inputs.cuda(), requires_grad=False), Variable(labels.cuda(),
+                                                                                            requires_grad=False)
+            else:
+                inputs_v, labels_v = Variable(inputs, requires_grad=False), Variable(labels, requires_grad=False)
 
-        # # print statistics
-        running_loss_v += loss.item()
-        running_tar_loss_v += loss2.item()
+            d0, d1, d2, d3, d4, d5 = net(inputs_v)
+            loss2, loss = muti_bce_loss_fusion(d0, d1, d2, d3, d4, d5, labels_v)
+            print("(Validation Phase) [epoch: %3d/%3d, batch: %5d/%5d, ite: %d] train loss: %3f, tar: %3f " % (
+                epoch + 1, epoch_num, (i + 1) * batch_size_val, val_num, ind_v, running_loss_v / ind_v,
+                running_tar_loss_v / ind_v))
+            # # print statistics
+            running_loss_v += loss.item()
+            running_tar_loss_v += loss2.item()
 
-        del d0, d1, d2, d3, d4, d5, loss2, loss
-        print("[epoch: %3d/%3d, batch: %5d/%5d, ite: %d] train loss: %3f, tar: %3f " % (
-            epoch + 1, epoch_num, (i + 1) * batch_size_val, val_num, ind_v, running_loss / ind_v,
-            running_tar_loss / ind_v))
+            del d0, d1, d2, d3, d4, d5, loss2, loss
+
+
+
+
+        torch.save(net.state_dict(), model_dir + "basnet_%d.pth" % (epoch))
+        running_loss = 0.0
+        running_tar_loss = 0.0
+        net.train()  # resume train
+        ite_num4val = 0
+
+
+
+
+    # sys.stdout.write("\033[F")
+    # sys.stdout.write("\033[F")
+    # sys.stdout.write("\033[F")
 
 
 print('-------------Congratulations! Training Done!!!-------------')

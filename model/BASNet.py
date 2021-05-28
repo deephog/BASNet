@@ -223,17 +223,17 @@ class BASNet(nn.Module):
         self.relu2d_2 = nn.ReLU(inplace=True)
 
         #stage 1d
-        self.conv1d_1 = nn.Conv2d(128,64,3,padding=1) # 256
-        self.bn1d_1 = nn.BatchNorm2d(64)
-        self.relu1d_1 = nn.ReLU(inplace=True)
-
-        self.conv1d_m = nn.Conv2d(64,64,3,padding=1)###
-        self.bn1d_m = nn.BatchNorm2d(64)
-        self.relu1d_m = nn.ReLU(inplace=True)
-
-        self.conv1d_2 = nn.Conv2d(64,64,3,padding=1)
-        self.bn1d_2 = nn.BatchNorm2d(64)
-        self.relu1d_2 = nn.ReLU(inplace=True)
+        # self.conv1d_1 = nn.Conv2d(128,64,3,padding=1) # 256
+        # self.bn1d_1 = nn.BatchNorm2d(64)
+        # self.relu1d_1 = nn.ReLU(inplace=True)
+        #
+        # self.conv1d_m = nn.Conv2d(64,64,3,padding=1)###
+        # self.bn1d_m = nn.BatchNorm2d(64)
+        # self.relu1d_m = nn.ReLU(inplace=True)
+        #
+        # self.conv1d_2 = nn.Conv2d(64,64,3,padding=1)
+        # self.bn1d_2 = nn.BatchNorm2d(64)
+        # self.relu1d_2 = nn.ReLU(inplace=True)
 
         ## -------------Bilinear Upsampling--------------
         self.upscore6 = nn.Upsample(scale_factor=32, mode='bilinear', align_corners=True)###
@@ -249,10 +249,10 @@ class BASNet(nn.Module):
         self.outconv4 = nn.Conv2d(256,1,3,padding=1)
         self.outconv3 = nn.Conv2d(128,1,3,padding=1)
         self.outconv2 = nn.Conv2d(64,1,3,padding=1)
-        self.outconv1 = nn.Conv2d(64,1,3,padding=1)
+        # self.outconv1 = nn.Conv2d(64,1,3,padding=1)
 
         ## -------------Refine Module-------------
-        self.refunet = RefUnet(1,64)
+        #self.refunet = RefUnet(1,64)
 
 
     def forward(self,x):
@@ -284,37 +284,37 @@ class BASNet(nn.Module):
 
         ## -------------Bridge-------------
         hx = self.relubg_1(self.bnbg_1(self.convbg_1(h5))) # 8
-        hx = self.relubg_m(self.bnbg_m(self.convbg_m(hx)))
+        #hx = self.relubg_m(self.bnbg_m(self.convbg_m(hx)))
         hbg = self.relubg_2(self.bnbg_2(self.convbg_2(hx)))
 
         ## -------------Decoder-------------
 
         hx = self.relu6d_1(self.bn6d_1(self.conv6d_1(torch.cat((hbg,h5),1))))
-        hx = self.relu6d_m(self.bn6d_m(self.conv6d_m(hx)))
+        #hx = self.relu6d_m(self.bn6d_m(self.conv6d_m(hx)))
         hd5 = self.relu6d_2(self.bn6d_2(self.conv6d_2(hx)))
 
         hx = self.upscore2(hd5) # 8 -> 16
 
         hx = self.relu5d_1(self.bn5d_1(self.conv5d_1(torch.cat((hx,h4),1))))
-        hx = self.relu5d_m(self.bn5d_m(self.conv5d_m(hx)))
+        #hx = self.relu5d_m(self.bn5d_m(self.conv5d_m(hx)))
         hd4 = self.relu5d_2(self.bn5d_2(self.conv5d_2(hx)))
 
         hx = self.upscore2(hd4) # 16 -> 32
 
         hx = self.relu4d_1(self.bn4d_1(self.conv4d_1(torch.cat((hx,h3),1))))
-        hx = self.relu4d_m(self.bn4d_m(self.conv4d_m(hx)))
+        #hx = self.relu4d_m(self.bn4d_m(self.conv4d_m(hx)))
         hd3 = self.relu4d_2(self.bn4d_2(self.conv4d_2(hx)))
 
         hx = self.upscore2(hd3) # 32 -> 64
 
         hx = self.relu3d_1(self.bn3d_1(self.conv3d_1(torch.cat((hx,h2),1))))
-        hx = self.relu3d_m(self.bn3d_m(self.conv3d_m(hx)))
+        #hx = self.relu3d_m(self.bn3d_m(self.conv3d_m(hx)))
         hd2 = self.relu3d_2(self.bn3d_2(self.conv3d_2(hx)))
 
         hx = self.upscore2(hd2) # 64 -> 128
 
         hx = self.relu2d_1(self.bn2d_1(self.conv2d_1(torch.cat((hx,h1),1))))
-        hx = self.relu2d_m(self.bn2d_m(self.conv2d_m(hx)))
+        #hx = self.relu2d_m(self.bn2d_m(self.conv2d_m(hx)))
         hd1 = self.relu2d_2(self.bn2d_2(self.conv2d_2(hx)))
 
         # hx = self.upscore2(hd2) # 128 -> 256

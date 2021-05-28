@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 from PIL import Image
+import torchvision.transforms.functional as TF
+import random
 #==========================dataset load==========================
 
 class RescaleT(object):
@@ -260,12 +262,18 @@ class OtherTrans(object):
 	def __call__(self, sample):
 		image, label = sample['image'], sample['label']
 
-		FLP = transforms.RandomHorizontalFlip()
-		RPe = transforms.RandomPerspective(distortion_scale=0.1, p=0.5)
-		RRo = transforms.RandomRotation(90)
-		image = RRo(RPe(FLP(image)))
-		#print(np.asarray(image).shape)
-		label = RRo(RPe(FLP(label)))
+		#FLP = transforms.RandomHorizontalFlip()
+		#RPe = transforms.RandomPerspective(distortion_scale=0.1, p=0.5)
+		#RRo = transforms.RandomRotation(90)
+
+		if random.random() > 0.5:
+			image = TF.hflip(image)
+			label = TF.hflip(label)
+
+		if random.random() > 0.5:
+			image = TF.vflip(image)
+			label = TF.vflip(label)
+
 		return {'image': image, 'label': label}
 
 
@@ -290,7 +298,7 @@ class SalObjDataset(Dataset):
 		image = Image.open(self.image_name_list[idx])
 
 		if(0==len(self.label_name_list)):
-			label = np.zeros(image.shape)
+			label = None
 		else:
 			label = Image.open(self.label_name_list[idx])
 
@@ -308,6 +316,9 @@ class SalObjDataset(Dataset):
 
 		image = np.asarray(image)
 		label_3 = np.asarray(label_3)
+
+		if (0==len(self.label_name_list)):
+			label_3 = np.zeros(image.shape)
 
 		label = np.zeros(label_3.shape[0:2])
 		if(3==len(label_3.shape)):
