@@ -324,27 +324,27 @@ class BASNet(nn.Module):
         # hd1 = self.relu1d_2(self.bn1d_2(self.conv1d_2(hx)))
 
         ## -------------Side Output-------------
-        db = self.outconvb(hbg)
-        db = self.upscore6(db) # 8->256
-
-        # d6 = self.outconv6(hd5)
-        # d6 = self.upscore6(d6) # 8->256
-
-        d5 = self.outconv5(hd5)
-        d5 = self.upscore6(d5) # 8->256
-
-        d4 = self.outconv5(hd4)
-        d4 = self.upscore5(d4) # 16->256
-
-        d3 = self.outconv4(hd3)
-        d3 = self.upscore4(d3) # 32->256
-
-        d2 = self.outconv3(hd2)
-        d2 = self.upscore3(d2) # 64->256
+        # db = self.outconvb(hbg)
+        # db = self.upscore6(db) # 8->256
+        #
+        # # d6 = self.outconv6(hd5)
+        # # d6 = self.upscore6(d6) # 8->256
+        #
+        # d5 = self.outconv5(hd5)
+        # d5 = self.upscore6(d5) # 8->256
+        #
+        # d4 = self.outconv5(hd4)
+        # d4 = self.upscore5(d4) # 16->256
+        #
+        # d3 = self.outconv4(hd3)
+        # d3 = self.upscore4(d3) # 32->256
+        #
+        # d2 = self.outconv3(hd2)
+        # d2 = self.upscore3(d2) # 64->256
 
         d1 = self.outconv2(hd1) # 128 -> 256
         d1 = self.upscore2(d1)
         ## -------------Refine Module-------------
         #dout = self.refunet(d1) # 256
 
-        return F.sigmoid(d1), F.sigmoid(d2), F.sigmoid(d3), F.sigmoid(d4), F.sigmoid(d5), F.sigmoid(db)
+        return F.sigmoid(d1)#, F.sigmoid(d2), F.sigmoid(d3), F.sigmoid(d4), F.sigmoid(d5), F.sigmoid(db)

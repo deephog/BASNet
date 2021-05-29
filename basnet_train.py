@@ -29,7 +29,7 @@ from model import BASNet
 import pytorch_ssim
 import pytorch_iou
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 # ------- 1. define loss function --------
 
 bce_loss = nn.BCELoss(size_average=True)
@@ -46,35 +46,35 @@ def bce_ssim_loss(pred,target):
 
     return loss
 
-def muti_bce_loss_fusion( d1, d2, d3, d4, d5, d6, labels_v):
+def muti_bce_loss_fusion(d1, labels_v)#d2, d3, d4, d5, d6, labels_v):
 
     #loss0 = bce_ssim_loss(d0,labels_v)
     loss1 = bce_ssim_loss(d1,labels_v)
-    loss2 = bce_ssim_loss(d2,labels_v)
-    loss3 = bce_ssim_loss(d3,labels_v)
-    loss4 = bce_ssim_loss(d4,labels_v)
-    loss5 = bce_ssim_loss(d5,labels_v)
-    loss6 = bce_ssim_loss(d6,labels_v)
+    # loss2 = bce_ssim_loss(d2,labels_v)
+    # loss3 = bce_ssim_loss(d3,labels_v)
+    # loss4 = bce_ssim_loss(d4,labels_v)
+    # loss5 = bce_ssim_loss(d5,labels_v)
+    # loss6 = bce_ssim_loss(d6,labels_v)
     #loss7 = bce_ssim_loss(d7,labels_v)
     #ssim0 = 1 - ssim_loss(d0,labels_v)
 
     # iou0 = iou_loss(d0,labels_v)
     #loss = torch.pow(torch.mean(torch.abs(labels_v-d0)),2)*(5.0*loss0 + loss1 + loss2 + loss3 + loss4 + loss5) #+ 5.0*lossa
-    loss = loss1 + loss2 + loss3 + loss4 + loss5 + loss6#+ 5.0*lossa
+    #loss = loss1 + loss2 + loss3 + loss4 + loss5 + loss6#+ 5.0*lossa
     # print("l0: %3f, l1: %3f, l2: %3f, l3: %3f, l4: %3f, l5: %3f, l6: %3f\n"%(loss0.data[0],loss1.data[0],loss2.data[0],loss3.data[0],loss4.data[0],loss5.data[0],loss6.data[0]))
     # print("BCE: l1:%3f, l2:%3f, l3:%3f, l4:%3f, l5:%3f, la:%3f, all:%3f\n"%(loss1.data[0],loss2.data[0],loss3.data[0],loss4.data[0],loss5.data[0],lossa.data[0],loss.data[0]))
     #print("\r l0: %3f, l1: %3f, l2: %3f, l3: %3f, l4: %3f, l5: %3f" % (loss1.item(), loss2.item(), loss3.item(), loss4.item(), loss5.item(), loss6.item()))
-    return loss1, loss
+    return loss1#, loss
 
 
 # ------- 2. set the directory of training dataset --------
 
 data_dir = './train_data/'
-tra_image_dir = 'DUTS/DUTS-TR/image/'
-tra_label_dir = 'DUTS/DUTS-TR/mask/'
+tra_image_dir = 'HUMAN/train/image/'
+tra_label_dir = 'HUMAN/train/mask/'
 
-te_image_dir = 'DUTS/DUTS-TE/image/'
-te_label_dir = 'DUTS/DUTS-TE/mask/'
+te_image_dir = 'HUMAN/val/image/'
+te_label_dir = 'HUMAN/val/mask/'
 
 # tra_image_dir = 'dummy_img/'
 # tra_label_dir = 'dummy_gt/'
@@ -85,11 +85,20 @@ te_label_dir = 'DUTS/DUTS-TE/mask/'
 image_ext = '.jpg'
 label_ext = '.png'
 
-model_dir = "./saved_models/basnet_bsi/"
+model_dir = "./saved_models/basnet_bsi_human_d1/"
+
+
+##############################
+checkpoint = None
+#############################
+
+
+if checkpoint:
+    checkpoint_dir = model_dir + 'basnet_' + str(451) + '.pth'
 
 epoch_num = 1000
-batch_size_train = 128
-batch_size_val = 128
+batch_size_train = 32
+batch_size_val = 32
 train_num = 0
 val_num = 0
 
@@ -158,9 +167,11 @@ net = BASNet(3, 1)
 if torch.cuda.is_available():
     net.cuda()
 
+net.load_state_dict(torch.load(checkpoint_dir))
+
 # ------- 4. define optimizer --------
 print("---define optimizer...")
-optimizer = optim.Adam(net.parameters(), lr=0.002, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01)
+optimizer = optim.Adam(net.parameters(), lr=0.002, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
 
 # ------- 5. training process --------
 print("---start training...")
@@ -170,6 +181,9 @@ running_tar_loss = 0.0
 ite_num4val = 0
 
 for epoch in range(0, epoch_num):
+    if checkpoint:
+        epoch += checkpoint
+
     net.train()
     start_time = time.time()
 
@@ -203,18 +217,18 @@ for epoch in range(0, epoch_num):
         optimizer.zero_grad()
 
         # forward + backward + optimize
-        d0, d1, d2, d3, d4, d5 = net(inputs_v)
-        loss2, loss = muti_bce_loss_fusion(d0, d1, d2, d3, d4, d5, labels_v)
+        d0 = net(inputs_v)#, d1, d2, d3, d4, d5 =
+        loss = muti_bce_loss_fusion(d0, labels_v)#d1, d2, d3, d4, d5, labels_v) #loss2
 
         loss.backward()
         optimizer.step()
 
         # # print statistics
         running_loss += loss.item()
-        running_tar_loss += loss2.item()
+        running_tar_loss += loss.item()
 
         # del temporary outputs and loss
-        del d0, d1, d2, d3, d4, d5, loss2, loss
+        del d0, loss#d1, d2, d3, d4, d5, loss2, loss
 
         print("[epoch: %3d/%3d, batch: %5d/%5d, ite: %d] train loss: %3f, tar: %3f , time_lapse: %3f" % (
             epoch + 1, epoch_num, (i + 1) * batch_size_train, train_num, ite_num, running_loss / ite_num4val,
@@ -247,28 +261,23 @@ for epoch in range(0, epoch_num):
             else:
                 inputs_v, labels_v = Variable(inputs, requires_grad=False), Variable(labels, requires_grad=False)
 
-            d0, d1, d2, d3, d4, d5 = net(inputs_v)
-            loss2, loss = muti_bce_loss_fusion(d0, d1, d2, d3, d4, d5, labels_v)
+            d0 = net(inputs_v) #, d1, d2, d3, d4, d5
+            loss = muti_bce_loss_fusion(d0, labels_v)#d1, d2, d3, d4, d5,
             print("(Validation Phase) [epoch: %3d/%3d, batch: %5d/%5d, ite: %d] train loss: %3f, tar: %3f " % (
                 epoch + 1, epoch_num, (i + 1) * batch_size_val, val_num, ind_v, running_loss_v / ind_v,
                 running_tar_loss_v / ind_v))
             # # print statistics
             running_loss_v += loss.item()
-            running_tar_loss_v += loss2.item()
+            running_tar_loss_v += loss.item()
 
-            del d0, d1, d2, d3, d4, d5, loss2, loss
-
-
+            del d0, loss #d1, d2, d3, d4, d5, loss2,
 
 
         torch.save(net.state_dict(), model_dir + "basnet_%d.pth" % (epoch))
-        running_loss = 0.0
-        running_tar_loss = 0.0
+        #running_loss = 0.0
+        #running_tar_loss = 0.0
         net.train()  # resume train
-        ite_num4val = 0
-
-
-
+        #ite_num4val = 0
 
     # sys.stdout.write("\033[F")
     # sys.stdout.write("\033[F")

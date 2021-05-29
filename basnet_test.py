@@ -60,7 +60,7 @@ if __name__ == '__main__':
 	
 	image_dir = './test_data/test_images/'
 	prediction_dir = './test_data/test_results/'
-	model_dir = './saved_models/basnet_bsi/basnet_411.pth'
+	model_dir = './saved_models/basnet_bsi_human/basnet_441.pth'
 	
 	img_name_list = glob.glob(image_dir + '*.jpg')
 	
