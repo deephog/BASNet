@@ -1,0 +1,59 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.10.31
+    code_path: code/basnet_train.py
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.8.8
+    t:
+      1:
+      - 1
+      2:
+      - 1
+      4: 3.8.8
+      5: 0.10.31
+      8:
+      - 5
+batch_size:
+  desc: null
+  value: 8
+checkpoint:
+  desc: null
+  value: 197
+epochs:
+  desc: null
+  value: 1000
+fb_rate:
+  desc: null
+  value: 0.1
+gpu:
+  desc: null
+  value: 0, 1
+learning_rate:
+  desc: null
+  value: 0.0001
+load_pretrained:
+  desc: null
+  value: false
+lr_decay:
+  desc: null
+  value: 0
+model_dir:
+  desc: null
+  value: ./saved_models/basnet_bsi_human2_fr0.2_pb_0.2/
+ob_rate:
+  desc: null
+  value: 0.1
+plate_dir:
+  desc: null
+  value: ''
+trainsize:
+  desc: null
+  value: 352
+with_plate:
+  desc: null
+  value: true

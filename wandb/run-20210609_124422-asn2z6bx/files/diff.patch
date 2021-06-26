@@ -1,0 +1,1074 @@
+diff --git a/.idea/BASNet.iml b/.idea/BASNet.iml
+index d0876a7..880c2e3 100644
+--- a/.idea/BASNet.iml
++++ b/.idea/BASNet.iml
+@@ -2,7 +2,7 @@
+ <module type="PYTHON_MODULE" version="4">
+   <component name="NewModuleRootManager">
+     <content url="file://$MODULE_DIR$" />
+-    <orderEntry type="inheritedJdk" />
++    <orderEntry type="jdk" jdkName="Python 3.8 (torch)" jdkType="Python SDK" />
+     <orderEntry type="sourceFolder" forTests="false" />
+   </component>
+ </module>
+\ No newline at end of file
+diff --git a/.idea/misc.xml b/.idea/misc.xml
+index 1f3dad7..c37d577 100644
+--- a/.idea/misc.xml
++++ b/.idea/misc.xml
+@@ -1,4 +1,4 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <project version="4">
+-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.8 (BASNet)" project-jdk-type="Python SDK" />
++  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.8 (torch)" project-jdk-type="Python SDK" />
+ </project>
+\ No newline at end of file
+diff --git a/after_resize.png b/after_resize.png
+index 5c89bf5..1bbe995 100644
+Binary files a/after_resize.png and b/after_resize.png differ
+diff --git a/basnet_test.py b/basnet_test.py
+index 6a426e1..426bd1a 100755
+--- a/basnet_test.py
++++ b/basnet_test.py
+@@ -60,7 +60,7 @@ if __name__ == '__main__':
+ 	
+ 	image_dir = './test_data/test_images/'
+ 	prediction_dir = './test_data/test_results/'
+-	model_dir = './saved_models/basnet_bsi_human/basnet_441.pth'
++	model_dir = './saved_models/basnet_bsi/basnet.pth'
+ 	
+ 	img_name_list = glob.glob(image_dir + '*.jpg')
+ 	
+@@ -108,7 +108,7 @@ if __name__ == '__main__':
+ 			inputs_test = Variable(inputs_test)
+ 	
+ 		start = time.time()
+-		d1 = net(inputs_test)#,d2,d3,d4,d5,d6,d7,d8
++		d1, d2, d3, d4, d5, d6, d7, d8 = net(inputs_test)#,d2,d3,d4,d5,d6,d7,d8
+ 		#print(d1)
+ 		torch.cuda.synchronize()
+ 		#d1 = d1.cpu() 
+diff --git a/basnet_train.py b/basnet_train.py
+index acc4e3f..e74a992 100644
+--- a/basnet_train.py
++++ b/basnet_train.py
+@@ -7,6 +7,7 @@ import torch.nn.functional as F
+ from torch.utils.data import Dataset, DataLoader
+ from torchvision import transforms, utils
+ import torch.optim as optim
++import wandb
+ import torchvision.transforms as standard_transforms
+ 
+ import numpy as np
+@@ -29,13 +30,26 @@ from model import BASNet
+ import pytorch_ssim
+ import pytorch_iou
+ import os
+-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+ # ------- 1. define loss function --------
+ 
+ bce_loss = nn.BCELoss(size_average=True)
+ ssim_loss = pytorch_ssim.SSIM(window_size=11,size_average=True)
+ iou_loss = pytorch_iou.IOU(size_average=True)
+ 
++hyperparameter_defaults = {
++              "gpu": '0',
++              "learning_rate": 1e-4,
++              "lr_decay": 0,
++              "epochs": 1000,
++              "batch_size": 16,
++              "checkpoint": False,
++              "load_pretrained": True,
++              "model_dir": "./saved_models/basnet_bsi_refine/"
++}
++
++run = wandb.init(project='basnet_refine', config=hyperparameter_defaults, save_code='on', mode='online', reinit=True)
++config = run.config
++os.environ["CUDA_VISIBLE_DEVICES"] = config.gpu
+ def bce_ssim_loss(pred,target):
+ 
+     bce_out = bce_loss(pred,target)
+@@ -46,35 +60,35 @@ def bce_ssim_loss(pred,target):
+ 
+     return loss
+ 
+-def muti_bce_loss_fusion(d1, labels_v)#d2, d3, d4, d5, d6, labels_v):
++def muti_bce_loss_fusion(d0, d1, d2, d3, d4, d5, d6, d7, labels_v):
+ 
+-    #loss0 = bce_ssim_loss(d0,labels_v)
++    loss0 = bce_ssim_loss(d0,labels_v)
+     loss1 = bce_ssim_loss(d1,labels_v)
+-    # loss2 = bce_ssim_loss(d2,labels_v)
+-    # loss3 = bce_ssim_loss(d3,labels_v)
+-    # loss4 = bce_ssim_loss(d4,labels_v)
+-    # loss5 = bce_ssim_loss(d5,labels_v)
+-    # loss6 = bce_ssim_loss(d6,labels_v)
+-    #loss7 = bce_ssim_loss(d7,labels_v)
++    loss2 = bce_ssim_loss(d2,labels_v)
++    loss3 = bce_ssim_loss(d3,labels_v)
++    loss4 = bce_ssim_loss(d4,labels_v)
++    loss5 = bce_ssim_loss(d5,labels_v)
++    loss6 = bce_ssim_loss(d6,labels_v)
++    loss7 = bce_ssim_loss(d7,labels_v)
+     #ssim0 = 1 - ssim_loss(d0,labels_v)
+ 
+     # iou0 = iou_loss(d0,labels_v)
+     #loss = torch.pow(torch.mean(torch.abs(labels_v-d0)),2)*(5.0*loss0 + loss1 + loss2 + loss3 + loss4 + loss5) #+ 5.0*lossa
+-    #loss = loss1 + loss2 + loss3 + loss4 + loss5 + loss6#+ 5.0*lossa
++    loss = loss0 + loss1 + loss2 + loss3 + loss4 + loss5 + loss6 + loss7#+ 5.0*lossa
+     # print("l0: %3f, l1: %3f, l2: %3f, l3: %3f, l4: %3f, l5: %3f, l6: %3f\n"%(loss0.data[0],loss1.data[0],loss2.data[0],loss3.data[0],loss4.data[0],loss5.data[0],loss6.data[0]))
+     # print("BCE: l1:%3f, l2:%3f, l3:%3f, l4:%3f, l5:%3f, la:%3f, all:%3f\n"%(loss1.data[0],loss2.data[0],loss3.data[0],loss4.data[0],loss5.data[0],lossa.data[0],loss.data[0]))
+     #print("\r l0: %3f, l1: %3f, l2: %3f, l3: %3f, l4: %3f, l5: %3f" % (loss1.item(), loss2.item(), loss3.item(), loss4.item(), loss5.item(), loss6.item()))
+-    return loss1#, loss
++    return loss0, loss
+ 
+ 
+ # ------- 2. set the directory of training dataset --------
+ 
+-data_dir = './train_data/'
+-tra_image_dir = 'HUMAN/train/image/'
+-tra_label_dir = 'HUMAN/train/mask/'
++data_dir = '/home/hypevr/data/projects/data/combined_human/'
++tra_image_dir = 'train/image/'
++tra_label_dir = 'train/mask/'
+ 
+-te_image_dir = 'HUMAN/val/image/'
+-te_label_dir = 'HUMAN/val/mask/'
++te_image_dir = 'val/image/'
++te_label_dir = 'val/mask/'
+ 
+ # tra_image_dir = 'dummy_img/'
+ # tra_label_dir = 'dummy_gt/'
+@@ -83,22 +97,24 @@ te_label_dir = 'HUMAN/val/mask/'
+ # te_label_dir = 'dummy_gt/'
+ 
+ image_ext = '.jpg'
+-label_ext = '.png'
+-
+-model_dir = "./saved_models/basnet_bsi_human_d1/"
++label_ext = '.jpg'
+ 
++model_dir = config.model_dir
+ 
+ ##############################
+-checkpoint = None
++checkpoint = config.checkpoint
++load_pretrained = config.load_pretrained
+ #############################
+ 
+-
+ if checkpoint:
+-    checkpoint_dir = model_dir + 'basnet_' + str(451) + '.pth'
++    checkpoint_dir = model_dir + 'basnet_' + str(checkpoint) + '.pth'
+ 
+-epoch_num = 1000
+-batch_size_train = 32
+-batch_size_val = 32
++if load_pretrained:
++    checkpoint_dir = './saved_models/basnet_bsi/basnet.pth'
++
++epoch_num = config.epochs
++batch_size_train = config.batch_size
++batch_size_val = config.batch_size
+ train_num = 0
+ val_num = 0
+ 
+@@ -107,6 +123,10 @@ te_img_name_list = glob.glob(data_dir + te_image_dir + '*' + image_ext)
+ 
+ tra_lbl_name_list = []
+ te_lbl_name_list = []
++
++
++
++
+ for img_path in tra_img_name_list:
+     img_name = img_path.split("/")[-1]
+ 
+@@ -145,8 +165,8 @@ salobj_dataset = SalObjDataset(
+     lbl_name_list=tra_lbl_name_list,
+     img_transform=transforms.Compose([OtherTrans()]),
+     transform=transforms.Compose([
+-        RescaleT(256),
+-        RandomCrop(224),
++        RescaleT(512),
++        RandomCrop(352),
+         ToTensorLab(flag=0),
+     ]))
+ 
+@@ -154,7 +174,7 @@ salobj_dataset_te = SalObjDataset(
+     img_name_list=te_img_name_list,
+     lbl_name_list=te_lbl_name_list,
+     transform=transforms.Compose([
+-        RescaleT(224),
++        RescaleT(352),
+         #RandomCrop(224),
+         ToTensorLab(flag=0),
+     ]))
+@@ -167,11 +187,13 @@ net = BASNet(3, 1)
+ if torch.cuda.is_available():
+     net.cuda()
+ 
+-net.load_state_dict(torch.load(checkpoint_dir))
++if checkpoint or load_pretrained:
++    net.load_state_dict(torch.load(checkpoint_dir))
++
+ 
+ # ------- 4. define optimizer --------
+ print("---define optimizer...")
+-optimizer = optim.Adam(net.parameters(), lr=0.002, betas=(0.9, 0.999), eps=1e-08, weight_decay=0)
++optimizer = optim.Adam(net.parameters(), lr=config.learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=config.lr_decay)
+ 
+ # ------- 5. training process --------
+ print("---start training...")
+@@ -217,15 +239,15 @@ for epoch in range(0, epoch_num):
+         optimizer.zero_grad()
+ 
+         # forward + backward + optimize
+-        d0 = net(inputs_v)#, d1, d2, d3, d4, d5 =
+-        loss = muti_bce_loss_fusion(d0, labels_v)#d1, d2, d3, d4, d5, labels_v) #loss2
++        d0, d1, d2, d3, d4, d5, d6, d7 = net(inputs_v)#
++        loss0, loss = muti_bce_loss_fusion(d0, d1, d2, d3, d4, d5, d6, d7, labels_v) #loss2
+ 
+         loss.backward()
+         optimizer.step()
+ 
+         # # print statistics
+         running_loss += loss.item()
+-        running_tar_loss += loss.item()
++        running_tar_loss += loss0.item()
+ 
+         # del temporary outputs and loss
+         del d0, loss#d1, d2, d3, d4, d5, loss2, loss
+@@ -234,9 +256,11 @@ for epoch in range(0, epoch_num):
+             epoch + 1, epoch_num, (i + 1) * batch_size_train, train_num, ite_num, running_loss / ite_num4val,
+             running_tar_loss / ite_num4val, time.time()-start_time))
+ 
++    wandb.log({'epochs': epoch,
++               'train_loss': float(running_tar_loss / ite_num4val),
++               })
+ 
+-
+-    if epoch % 10 == 1:  # save model every 2000 iterations
++    if epoch % 2 == 1:  # save model every 2000 iterations
+         # basnet_bsi_itr_%d_train_%3f_tar_%3f.pth basnet_time.pth
+         # torch.save(net.state_dict(), model_dir + "basnet_bsi_itr_%d_train_%3f_tar_%3f.pth" % (ite_num, running_loss / ite_num4val, running_tar_loss / ite_num4val))
+ 
+@@ -261,23 +285,27 @@ for epoch in range(0, epoch_num):
+             else:
+                 inputs_v, labels_v = Variable(inputs, requires_grad=False), Variable(labels, requires_grad=False)
+ 
+-            d0 = net(inputs_v) #, d1, d2, d3, d4, d5
+-            loss = muti_bce_loss_fusion(d0, labels_v)#d1, d2, d3, d4, d5,
++            d0, d1, d2, d3, d4, d5, d6, d7 = net(inputs_v)#
++            loss0, loss = muti_bce_loss_fusion(d0, d1, d2, d3, d4, d5, d6, d7, labels_v)#d1, d2, d3, d4, d5,
++
++            running_loss_v += loss.item()
++            running_tar_loss_v += loss0.item()
++
+             print("(Validation Phase) [epoch: %3d/%3d, batch: %5d/%5d, ite: %d] train loss: %3f, tar: %3f " % (
+                 epoch + 1, epoch_num, (i + 1) * batch_size_val, val_num, ind_v, running_loss_v / ind_v,
+                 running_tar_loss_v / ind_v))
+             # # print statistics
+-            running_loss_v += loss.item()
+-            running_tar_loss_v += loss.item()
+ 
+             del d0, loss #d1, d2, d3, d4, d5, loss2,
+ 
+-
+         torch.save(net.state_dict(), model_dir + "basnet_%d.pth" % (epoch))
+         #running_loss = 0.0
+         #running_tar_loss = 0.0
+         net.train()  # resume train
+         #ite_num4val = 0
++        wandb.log({
++                   'val_loss': float(running_tar_loss_v / ind_v)
++                   })
+ 
+     # sys.stdout.write("\033[F")
+     # sys.stdout.write("\033[F")
+diff --git a/data_split.py b/data_split.py
+index 06a9c98..fc8e4dd 100644
+--- a/data_split.py
++++ b/data_split.py
+@@ -2,7 +2,7 @@ import os
+ import random
+ import shutil
+ 
+-src_root = 'HUMAN/'
++src_root = '/home/hypevr/data/projects/data/icome/'
+ path, dirs, files = next(os.walk(src_root + 'image/'))
+ 
+ num_img = len(files)
+@@ -16,9 +16,9 @@ val_list = files[int(num_img*train_pct):]
+ for f in train_list:
+     fname = f.split('.')[0]
+     shutil.copy(src_root + 'image/' + f, src_root + 'train/image/' + f)
+-    shutil.copy(src_root + 'mask/' + fname + '.png', src_root + 'train/mask/' + fname + '.png')
++    shutil.copy(src_root + 'mask/' + fname + '.jpg', src_root + 'train/mask/' + fname + '.jpg')
+ 
+ for f in val_list:
+     fname = f.split('.')[0]
+     shutil.copy(src_root + 'image/' + f, src_root + 'val/image/' + f)
+-    shutil.copy(src_root + 'mask/' + fname + '.png', src_root + 'val/mask/' + fname + '.png')
++    shutil.copy(src_root + 'mask/' + fname + '.jpg', src_root + 'val/mask/' + fname + '.jpg')
+diff --git a/inter_img.png b/inter_img.png
+index 087f397..7859740 100644
+Binary files a/inter_img.png and b/inter_img.png differ
+diff --git a/mask_check.py b/mask_check.py
+new file mode 100644
+index 0000000..ed2d33a
+--- /dev/null
++++ b/mask_check.py
+@@ -0,0 +1,25 @@
++import os
++from skimage import io, transform, color
++from skimage.viewer import ImageViewer
++import numpy as np
++
++src = 'train_data/HUMAN/train/mask/'
++path, dirs, files = next(os.walk(src))
++images = []
++for f in files:
++    image = io.imread(path+f, as_gray=True)
++    image = np.asarray(image)
++    viewer = ImageViewer(image)
++    viewer.show()
++    print(np.unique(image))
++
++    image[image<1.] = 0
++    viewer = ImageViewer(image)
++    viewer.show()
++    input('wait')
++    image = transform.resize(image, (256, 256), mode='constant', order=0, preserve_range=True)
++    images.append(image)
++
++images = np.asarray(images)
++print(np.unique(images))
++
+diff --git a/model/BASNet.py b/model/BASNet.py
+old mode 100755
+new mode 100644
+index a2155e3..8d6bdf8
+--- a/model/BASNet.py
++++ b/model/BASNet.py
+@@ -4,7 +4,6 @@ from torchvision import models
+ import torch.nn.functional as F
+ 
+ from .resnet_model import *
+-from torchkeras import summary
+ 
+ 
+ class RefUnet(nn.Module):
+@@ -106,45 +105,41 @@ class BASNet(nn.Module):
+     def __init__(self,n_channels,n_classes):
+         super(BASNet,self).__init__()
+ 
+-        resnet = models.mobilenet_v2(pretrained=True)
+-        #print(summary(resnet, input_shape=(3, 224, 224)))
+-        #print(resnet)
++        resnet = models.resnet34(pretrained=True)
+ 
+         ## -------------Encoder--------------
+ 
+-        #self.inconv = nn.Conv2d(n_channels,32,3,padding=1)
+-        #self.inbn = nn.BatchNorm2d(32)
+-        #self.inrelu = nn.ReLU(inplace=True)
++        self.inconv = nn.Conv2d(n_channels,64,3,padding=1)
++        self.inbn = nn.BatchNorm2d(64)
++        self.inrelu = nn.ReLU(inplace=True)
+ 
+         #stage 1
+-        self.encoder1 = resnet.features[:2] #112
++        self.encoder1 = resnet.layer1 #224
+         #stage 2
+-        self.encoder2 = resnet.features[2:4] #56
++        self.encoder2 = resnet.layer2 #112
+         #stage 3
+-        self.encoder3 = resnet.features[4:7] #28
++        self.encoder3 = resnet.layer3 #56
+         #stage 4
+-        self.encoder4 = resnet.features[7:14] #14
++        self.encoder4 = resnet.layer4 #28
++
++        self.pool4 = nn.MaxPool2d(2,2,ceil_mode=True)
++
+         #stage 5
+-        self.encoder5 = resnet.features[14:18] #7
+-
+-        # self.pool4 = nn.MaxPool2d(2,2,ceil_mode=True)
+-        #
+-        # #stage 5
+-        # self.resb5_1 = BasicBlock(512,512)
+-        # self.resb5_2 = BasicBlock(512,512)
+-        # self.resb5_3 = BasicBlock(512,512) #14
+-        #
+-        # self.pool5 = nn.MaxPool2d(2,2,ceil_mode=True)
+-        #
+-        # #stage 6
+-        # self.resb6_1 = BasicBlock(512,512)
+-        # self.resb6_2 = BasicBlock(512,512)
+-        # self.resb6_3 = BasicBlock(512,512) #7
++        self.resb5_1 = BasicBlock(512,512)
++        self.resb5_2 = BasicBlock(512,512)
++        self.resb5_3 = BasicBlock(512,512) #14
++
++        self.pool5 = nn.MaxPool2d(2,2,ceil_mode=True)
++
++        #stage 6
++        self.resb6_1 = BasicBlock(512,512)
++        self.resb6_2 = BasicBlock(512,512)
++        self.resb6_3 = BasicBlock(512,512) #7
+ 
+         ## -------------Bridge--------------
+ 
+         #stage Bridge
+-        self.convbg_1 = nn.Conv2d(320,512,3,dilation=2, padding=2) # 7
++        self.convbg_1 = nn.Conv2d(512,512,3,dilation=2, padding=2) # 7
+         self.bnbg_1 = nn.BatchNorm2d(512)
+         self.relubg_1 = nn.ReLU(inplace=True)
+         self.convbg_m = nn.Conv2d(512,512,3,dilation=2, padding=2)
+@@ -157,7 +152,7 @@ class BASNet(nn.Module):
+         ## -------------Decoder--------------
+ 
+         #stage 6d
+-        self.conv6d_1 = nn.Conv2d(832,512,3,padding=1) # 16
++        self.conv6d_1 = nn.Conv2d(1024,512,3,padding=1) # 16
+         self.bn6d_1 = nn.BatchNorm2d(512)
+         self.relu6d_1 = nn.ReLU(inplace=True)
+ 
+@@ -170,7 +165,7 @@ class BASNet(nn.Module):
+         self.relu6d_2 = nn.ReLU(inplace=True)
+ 
+         #stage 5d
+-        self.conv5d_1 = nn.Conv2d(608,512,3,padding=1) # 16
++        self.conv5d_1 = nn.Conv2d(1024,512,3,padding=1) # 16
+         self.bn5d_1 = nn.BatchNorm2d(512)
+         self.relu5d_1 = nn.ReLU(inplace=True)
+ 
+@@ -183,7 +178,7 @@ class BASNet(nn.Module):
+         self.relu5d_2 = nn.ReLU(inplace=True)
+ 
+         #stage 4d
+-        self.conv4d_1 = nn.Conv2d(544,512,3,padding=1) # 32
++        self.conv4d_1 = nn.Conv2d(1024,512,3,padding=1) # 32
+         self.bn4d_1 = nn.BatchNorm2d(512)
+         self.relu4d_1 = nn.ReLU(inplace=True)
+ 
+@@ -196,7 +191,7 @@ class BASNet(nn.Module):
+         self.relu4d_2 = nn.ReLU(inplace=True)
+ 
+         #stage 3d
+-        self.conv3d_1 = nn.Conv2d(280,256,3,padding=1) # 64
++        self.conv3d_1 = nn.Conv2d(512,256,3,padding=1) # 64
+         self.bn3d_1 = nn.BatchNorm2d(256)
+         self.relu3d_1 = nn.ReLU(inplace=True)
+ 
+@@ -210,7 +205,7 @@ class BASNet(nn.Module):
+ 
+         #stage 2d
+ 
+-        self.conv2d_1 = nn.Conv2d(144,128,3,padding=1) # 128
++        self.conv2d_1 = nn.Conv2d(256,128,3,padding=1) # 128
+         self.bn2d_1 = nn.BatchNorm2d(128)
+         self.relu2d_1 = nn.ReLU(inplace=True)
+ 
+@@ -223,24 +218,24 @@ class BASNet(nn.Module):
+         self.relu2d_2 = nn.ReLU(inplace=True)
+ 
+         #stage 1d
+-        # self.conv1d_1 = nn.Conv2d(128,64,3,padding=1) # 256
+-        # self.bn1d_1 = nn.BatchNorm2d(64)
+-        # self.relu1d_1 = nn.ReLU(inplace=True)
+-        #
+-        # self.conv1d_m = nn.Conv2d(64,64,3,padding=1)###
+-        # self.bn1d_m = nn.BatchNorm2d(64)
+-        # self.relu1d_m = nn.ReLU(inplace=True)
+-        #
+-        # self.conv1d_2 = nn.Conv2d(64,64,3,padding=1)
+-        # self.bn1d_2 = nn.BatchNorm2d(64)
+-        # self.relu1d_2 = nn.ReLU(inplace=True)
++        self.conv1d_1 = nn.Conv2d(128,64,3,padding=1) # 256
++        self.bn1d_1 = nn.BatchNorm2d(64)
++        self.relu1d_1 = nn.ReLU(inplace=True)
++
++        self.conv1d_m = nn.Conv2d(64,64,3,padding=1)###
++        self.bn1d_m = nn.BatchNorm2d(64)
++        self.relu1d_m = nn.ReLU(inplace=True)
++
++        self.conv1d_2 = nn.Conv2d(64,64,3,padding=1)
++        self.bn1d_2 = nn.BatchNorm2d(64)
++        self.relu1d_2 = nn.ReLU(inplace=True)
+ 
+         ## -------------Bilinear Upsampling--------------
+-        self.upscore6 = nn.Upsample(scale_factor=32, mode='bilinear', align_corners=True)###
+-        self.upscore5 = nn.Upsample(scale_factor=16, mode='bilinear', align_corners=True)
+-        self.upscore4 = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
+-        self.upscore3 = nn.Upsample(scale_factor=4, mode='bilinear', align_corners=True)
+-        self.upscore2 = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
++        self.upscore6 = nn.Upsample(scale_factor=32,mode='bilinear')###
++        self.upscore5 = nn.Upsample(scale_factor=16,mode='bilinear')
++        self.upscore4 = nn.Upsample(scale_factor=8,mode='bilinear')
++        self.upscore3 = nn.Upsample(scale_factor=4,mode='bilinear')
++        self.upscore2 = nn.Upsample(scale_factor=2, mode='bilinear')
+ 
+         ## -------------Side Output--------------
+         self.outconvb = nn.Conv2d(512,1,3,padding=1)
+@@ -249,10 +244,10 @@ class BASNet(nn.Module):
+         self.outconv4 = nn.Conv2d(256,1,3,padding=1)
+         self.outconv3 = nn.Conv2d(128,1,3,padding=1)
+         self.outconv2 = nn.Conv2d(64,1,3,padding=1)
+-        # self.outconv1 = nn.Conv2d(64,1,3,padding=1)
++        self.outconv1 = nn.Conv2d(64,1,3,padding=1)
+ 
+         ## -------------Refine Module-------------
+-        #self.refunet = RefUnet(1,64)
++        self.refunet = RefUnet(1,64)
+ 
+ 
+     def forward(self,x):
+@@ -260,91 +255,90 @@ class BASNet(nn.Module):
+         hx = x
+ 
+         ## -------------Encoder-------------
+-        #hx = self.inconv(hx)
+-        #hx = self.inbn(hx)
+-        #hx = self.inrelu(hx)
++        hx = self.inconv(hx)
++        hx = self.inbn(hx)
++        hx = self.inrelu(hx)
++
++        h1 = self.encoder1(hx) # 256
++        h2 = self.encoder2(h1) # 128
++        h3 = self.encoder3(h2) # 64
++        h4 = self.encoder4(h3) # 32
+ 
+-        h1 = self.encoder1(hx) # 128
+-        h2 = self.encoder2(h1) # 64
+-        h3 = self.encoder3(h2) # 32
+-        h4 = self.encoder4(h3) # 16
+-        h5 = self.encoder5(h4)  # 8
++        hx = self.pool4(h4) # 16
+ 
+-        # hx = self.pool4(h4) # 16
+-        #
+-        # hx = self.resb5_1(hx)
+-        # hx = self.resb5_2(hx)
+-        # h5 = self.resb5_3(hx)
++        hx = self.resb5_1(hx)
++        hx = self.resb5_2(hx)
++        h5 = self.resb5_3(hx)
+ 
+-        #hx = self.pool5(h5) # 8
++        hx = self.pool5(h5) # 8
+ 
+-        #hx = self.resb6_1(hx)
+-        #hx = self.resb6_2(hx)
+-        #h6 = self.resb6_3(hx)
++        hx = self.resb6_1(hx)
++        hx = self.resb6_2(hx)
++        h6 = self.resb6_3(hx)
+ 
+         ## -------------Bridge-------------
+-        hx = self.relubg_1(self.bnbg_1(self.convbg_1(h5))) # 8
+-        #hx = self.relubg_m(self.bnbg_m(self.convbg_m(hx)))
++        hx = self.relubg_1(self.bnbg_1(self.convbg_1(h6))) # 8
++        hx = self.relubg_m(self.bnbg_m(self.convbg_m(hx)))
+         hbg = self.relubg_2(self.bnbg_2(self.convbg_2(hx)))
+ 
+         ## -------------Decoder-------------
+ 
+-        hx = self.relu6d_1(self.bn6d_1(self.conv6d_1(torch.cat((hbg,h5),1))))
+-        #hx = self.relu6d_m(self.bn6d_m(self.conv6d_m(hx)))
+-        hd5 = self.relu6d_2(self.bn6d_2(self.conv6d_2(hx)))
++        hx = self.relu6d_1(self.bn6d_1(self.conv6d_1(torch.cat((hbg,h6),1))))
++        hx = self.relu6d_m(self.bn6d_m(self.conv6d_m(hx)))
++        hd6 = self.relu6d_2(self.bn6d_2(self.conv6d_2(hx)))
+ 
+-        hx = self.upscore2(hd5) # 8 -> 16
++        hx = self.upscore2(hd6) # 8 -> 16
+ 
+-        hx = self.relu5d_1(self.bn5d_1(self.conv5d_1(torch.cat((hx,h4),1))))
+-        #hx = self.relu5d_m(self.bn5d_m(self.conv5d_m(hx)))
+-        hd4 = self.relu5d_2(self.bn5d_2(self.conv5d_2(hx)))
++        hx = self.relu5d_1(self.bn5d_1(self.conv5d_1(torch.cat((hx,h5),1))))
++        hx = self.relu5d_m(self.bn5d_m(self.conv5d_m(hx)))
++        hd5 = self.relu5d_2(self.bn5d_2(self.conv5d_2(hx)))
+ 
+-        hx = self.upscore2(hd4) # 16 -> 32
++        hx = self.upscore2(hd5) # 16 -> 32
+ 
+-        hx = self.relu4d_1(self.bn4d_1(self.conv4d_1(torch.cat((hx,h3),1))))
+-        #hx = self.relu4d_m(self.bn4d_m(self.conv4d_m(hx)))
+-        hd3 = self.relu4d_2(self.bn4d_2(self.conv4d_2(hx)))
++        hx = self.relu4d_1(self.bn4d_1(self.conv4d_1(torch.cat((hx,h4),1))))
++        hx = self.relu4d_m(self.bn4d_m(self.conv4d_m(hx)))
++        hd4 = self.relu4d_2(self.bn4d_2(self.conv4d_2(hx)))
+ 
+-        hx = self.upscore2(hd3) # 32 -> 64
++        hx = self.upscore2(hd4) # 32 -> 64
+ 
+-        hx = self.relu3d_1(self.bn3d_1(self.conv3d_1(torch.cat((hx,h2),1))))
+-        #hx = self.relu3d_m(self.bn3d_m(self.conv3d_m(hx)))
+-        hd2 = self.relu3d_2(self.bn3d_2(self.conv3d_2(hx)))
++        hx = self.relu3d_1(self.bn3d_1(self.conv3d_1(torch.cat((hx,h3),1))))
++        hx = self.relu3d_m(self.bn3d_m(self.conv3d_m(hx)))
++        hd3 = self.relu3d_2(self.bn3d_2(self.conv3d_2(hx)))
+ 
+-        hx = self.upscore2(hd2) # 64 -> 128
++        hx = self.upscore2(hd3) # 64 -> 128
+ 
+-        hx = self.relu2d_1(self.bn2d_1(self.conv2d_1(torch.cat((hx,h1),1))))
+-        #hx = self.relu2d_m(self.bn2d_m(self.conv2d_m(hx)))
+-        hd1 = self.relu2d_2(self.bn2d_2(self.conv2d_2(hx)))
++        hx = self.relu2d_1(self.bn2d_1(self.conv2d_1(torch.cat((hx,h2),1))))
++        hx = self.relu2d_m(self.bn2d_m(self.conv2d_m(hx)))
++        hd2 = self.relu2d_2(self.bn2d_2(self.conv2d_2(hx)))
+ 
+-        # hx = self.upscore2(hd2) # 128 -> 256
+-        #
+-        # hx = self.relu1d_1(self.bn1d_1(self.conv1d_1(torch.cat((hx,h1),1))))
+-        # #hx = self.relu1d_m(self.bn1d_m(self.conv1d_m(hx)))
+-        # hd1 = self.relu1d_2(self.bn1d_2(self.conv1d_2(hx)))
++        hx = self.upscore2(hd2) # 128 -> 256
++
++        hx = self.relu1d_1(self.bn1d_1(self.conv1d_1(torch.cat((hx,h1),1))))
++        hx = self.relu1d_m(self.bn1d_m(self.conv1d_m(hx)))
++        hd1 = self.relu1d_2(self.bn1d_2(self.conv1d_2(hx)))
+ 
+         ## -------------Side Output-------------
+-        # db = self.outconvb(hbg)
+-        # db = self.upscore6(db) # 8->256
+-        #
+-        # # d6 = self.outconv6(hd5)
+-        # # d6 = self.upscore6(d6) # 8->256
+-        #
+-        # d5 = self.outconv5(hd5)
+-        # d5 = self.upscore6(d5) # 8->256
+-        #
+-        # d4 = self.outconv5(hd4)
+-        # d4 = self.upscore5(d4) # 16->256
+-        #
+-        # d3 = self.outconv4(hd3)
+-        # d3 = self.upscore4(d3) # 32->256
+-        #
+-        # d2 = self.outconv3(hd2)
+-        # d2 = self.upscore3(d2) # 64->256
+-
+-        d1 = self.outconv2(hd1) # 128 -> 256
+-        d1 = self.upscore2(d1)
++        db = self.outconvb(hbg)
++        db = self.upscore6(db) # 8->256
++
++        d6 = self.outconv6(hd6)
++        d6 = self.upscore6(d6) # 8->256
++
++        d5 = self.outconv5(hd5)
++        d5 = self.upscore5(d5) # 16->256
++
++        d4 = self.outconv4(hd4)
++        d4 = self.upscore4(d4) # 32->256
++
++        d3 = self.outconv3(hd3)
++        d3 = self.upscore3(d3) # 64->256
++
++        d2 = self.outconv2(hd2)
++        d2 = self.upscore2(d2) # 128->256
++
++        d1 = self.outconv1(hd1) # 256
++
+         ## -------------Refine Module-------------
+-        #dout = self.refunet(d1) # 256
++        dout = self.refunet(d1) # 256
+ 
+-        return F.sigmoid(d1)#, F.sigmoid(d2), F.sigmoid(d3), F.sigmoid(d4), F.sigmoid(d5), F.sigmoid(db)
++        return F.sigmoid(dout), F.sigmoid(d1), F.sigmoid(d2), F.sigmoid(d3), F.sigmoid(d4), F.sigmoid(d5), F.sigmoid(d6), F.sigmoid(db)
+\ No newline at end of file
+diff --git a/model/BASNet_mobile.py b/model/BASNet_mobile.py
+new file mode 100755
+index 0000000..a2155e3
+--- /dev/null
++++ b/model/BASNet_mobile.py
+@@ -0,0 +1,350 @@
++import torch
++import torch.nn as nn
++from torchvision import models
++import torch.nn.functional as F
++
++from .resnet_model import *
++from torchkeras import summary
++
++
++class RefUnet(nn.Module):
++    def __init__(self,in_ch,inc_ch):
++        super(RefUnet, self).__init__()
++
++        self.conv0 = nn.Conv2d(in_ch,inc_ch,3,padding=1)
++
++        self.conv1 = nn.Conv2d(inc_ch,64,3,padding=1)
++        self.bn1 = nn.BatchNorm2d(64)
++        self.relu1 = nn.ReLU(inplace=True)
++
++        self.pool1 = nn.MaxPool2d(2,2,ceil_mode=True)
++
++        self.conv2 = nn.Conv2d(64,64,3,padding=1)
++        self.bn2 = nn.BatchNorm2d(64)
++        self.relu2 = nn.ReLU(inplace=True)
++
++        self.pool2 = nn.MaxPool2d(2,2,ceil_mode=True)
++
++        self.conv3 = nn.Conv2d(64,64,3,padding=1)
++        self.bn3 = nn.BatchNorm2d(64)
++        self.relu3 = nn.ReLU(inplace=True)
++
++        self.pool3 = nn.MaxPool2d(2,2,ceil_mode=True)
++
++        self.conv4 = nn.Conv2d(64,64,3,padding=1)
++        self.bn4 = nn.BatchNorm2d(64)
++        self.relu4 = nn.ReLU(inplace=True)
++
++        self.pool4 = nn.MaxPool2d(2,2,ceil_mode=True)
++
++        #####
++
++        self.conv5 = nn.Conv2d(64,64,3,padding=1)
++        self.bn5 = nn.BatchNorm2d(64)
++        self.relu5 = nn.ReLU(inplace=True)
++
++        #####
++
++        self.conv_d4 = nn.Conv2d(128,64,3,padding=1)
++        self.bn_d4 = nn.BatchNorm2d(64)
++        self.relu_d4 = nn.ReLU(inplace=True)
++
++        self.conv_d3 = nn.Conv2d(128,64,3,padding=1)
++        self.bn_d3 = nn.BatchNorm2d(64)
++        self.relu_d3 = nn.ReLU(inplace=True)
++
++        self.conv_d2 = nn.Conv2d(128,64,3,padding=1)
++        self.bn_d2 = nn.BatchNorm2d(64)
++        self.relu_d2 = nn.ReLU(inplace=True)
++
++        self.conv_d1 = nn.Conv2d(128,64,3,padding=1)
++        self.bn_d1 = nn.BatchNorm2d(64)
++        self.relu_d1 = nn.ReLU(inplace=True)
++
++        self.conv_d0 = nn.Conv2d(64,1,3,padding=1)
++
++        self.upscore2 = nn.Upsample(scale_factor=2, mode='bilinear')
++
++
++    def forward(self,x):
++
++        hx = x
++        hx = self.conv0(hx)
++
++        hx1 = self.relu1(self.bn1(self.conv1(hx)))
++        hx = self.pool1(hx1)
++
++        hx2 = self.relu2(self.bn2(self.conv2(hx)))
++        hx = self.pool2(hx2)
++
++        hx3 = self.relu3(self.bn3(self.conv3(hx)))
++        hx = self.pool3(hx3)
++
++        hx4 = self.relu4(self.bn4(self.conv4(hx)))
++        hx = self.pool4(hx4)
++
++        hx5 = self.relu5(self.bn5(self.conv5(hx)))
++
++        hx = self.upscore2(hx5)
++
++        d4 = self.relu_d4(self.bn_d4(self.conv_d4(torch.cat((hx,hx4),1))))
++        hx = self.upscore2(d4)
++
++        d3 = self.relu_d3(self.bn_d3(self.conv_d3(torch.cat((hx,hx3),1))))
++        hx = self.upscore2(d3)
++
++        d2 = self.relu_d2(self.bn_d2(self.conv_d2(torch.cat((hx,hx2),1))))
++        hx = self.upscore2(d2)
++
++        d1 = self.relu_d1(self.bn_d1(self.conv_d1(torch.cat((hx,hx1),1))))
++
++        residual = self.conv_d0(d1)
++
++        return x + residual
++
++class BASNet(nn.Module):
++    def __init__(self,n_channels,n_classes):
++        super(BASNet,self).__init__()
++
++        resnet = models.mobilenet_v2(pretrained=True)
++        #print(summary(resnet, input_shape=(3, 224, 224)))
++        #print(resnet)
++
++        ## -------------Encoder--------------
++
++        #self.inconv = nn.Conv2d(n_channels,32,3,padding=1)
++        #self.inbn = nn.BatchNorm2d(32)
++        #self.inrelu = nn.ReLU(inplace=True)
++
++        #stage 1
++        self.encoder1 = resnet.features[:2] #112
++        #stage 2
++        self.encoder2 = resnet.features[2:4] #56
++        #stage 3
++        self.encoder3 = resnet.features[4:7] #28
++        #stage 4
++        self.encoder4 = resnet.features[7:14] #14
++        #stage 5
++        self.encoder5 = resnet.features[14:18] #7
++
++        # self.pool4 = nn.MaxPool2d(2,2,ceil_mode=True)
++        #
++        # #stage 5
++        # self.resb5_1 = BasicBlock(512,512)
++        # self.resb5_2 = BasicBlock(512,512)
++        # self.resb5_3 = BasicBlock(512,512) #14
++        #
++        # self.pool5 = nn.MaxPool2d(2,2,ceil_mode=True)
++        #
++        # #stage 6
++        # self.resb6_1 = BasicBlock(512,512)
++        # self.resb6_2 = BasicBlock(512,512)
++        # self.resb6_3 = BasicBlock(512,512) #7
++
++        ## -------------Bridge--------------
++
++        #stage Bridge
++        self.convbg_1 = nn.Conv2d(320,512,3,dilation=2, padding=2) # 7
++        self.bnbg_1 = nn.BatchNorm2d(512)
++        self.relubg_1 = nn.ReLU(inplace=True)
++        self.convbg_m = nn.Conv2d(512,512,3,dilation=2, padding=2)
++        self.bnbg_m = nn.BatchNorm2d(512)
++        self.relubg_m = nn.ReLU(inplace=True)
++        self.convbg_2 = nn.Conv2d(512,512,3,dilation=2, padding=2)
++        self.bnbg_2 = nn.BatchNorm2d(512)
++        self.relubg_2 = nn.ReLU(inplace=True)
++
++        ## -------------Decoder--------------
++
++        #stage 6d
++        self.conv6d_1 = nn.Conv2d(832,512,3,padding=1) # 16
++        self.bn6d_1 = nn.BatchNorm2d(512)
++        self.relu6d_1 = nn.ReLU(inplace=True)
++
++        self.conv6d_m = nn.Conv2d(512,512,3,dilation=2, padding=2)###
++        self.bn6d_m = nn.BatchNorm2d(512)
++        self.relu6d_m = nn.ReLU(inplace=True)
++
++        self.conv6d_2 = nn.Conv2d(512,512,3,dilation=2, padding=2)
++        self.bn6d_2 = nn.BatchNorm2d(512)
++        self.relu6d_2 = nn.ReLU(inplace=True)
++
++        #stage 5d
++        self.conv5d_1 = nn.Conv2d(608,512,3,padding=1) # 16
++        self.bn5d_1 = nn.BatchNorm2d(512)
++        self.relu5d_1 = nn.ReLU(inplace=True)
++
++        self.conv5d_m = nn.Conv2d(512,512,3,padding=1)###
++        self.bn5d_m = nn.BatchNorm2d(512)
++        self.relu5d_m = nn.ReLU(inplace=True)
++
++        self.conv5d_2 = nn.Conv2d(512,512,3,padding=1)
++        self.bn5d_2 = nn.BatchNorm2d(512)
++        self.relu5d_2 = nn.ReLU(inplace=True)
++
++        #stage 4d
++        self.conv4d_1 = nn.Conv2d(544,512,3,padding=1) # 32
++        self.bn4d_1 = nn.BatchNorm2d(512)
++        self.relu4d_1 = nn.ReLU(inplace=True)
++
++        self.conv4d_m = nn.Conv2d(512,512,3,padding=1)###
++        self.bn4d_m = nn.BatchNorm2d(512)
++        self.relu4d_m = nn.ReLU(inplace=True)
++
++        self.conv4d_2 = nn.Conv2d(512,256,3,padding=1)
++        self.bn4d_2 = nn.BatchNorm2d(256)
++        self.relu4d_2 = nn.ReLU(inplace=True)
++
++        #stage 3d
++        self.conv3d_1 = nn.Conv2d(280,256,3,padding=1) # 64
++        self.bn3d_1 = nn.BatchNorm2d(256)
++        self.relu3d_1 = nn.ReLU(inplace=True)
++
++        self.conv3d_m = nn.Conv2d(256,256,3,padding=1)###
++        self.bn3d_m = nn.BatchNorm2d(256)
++        self.relu3d_m = nn.ReLU(inplace=True)
++
++        self.conv3d_2 = nn.Conv2d(256,128,3,padding=1)
++        self.bn3d_2 = nn.BatchNorm2d(128)
++        self.relu3d_2 = nn.ReLU(inplace=True)
++
++        #stage 2d
++
++        self.conv2d_1 = nn.Conv2d(144,128,3,padding=1) # 128
++        self.bn2d_1 = nn.BatchNorm2d(128)
++        self.relu2d_1 = nn.ReLU(inplace=True)
++
++        self.conv2d_m = nn.Conv2d(128,128,3,padding=1)###
++        self.bn2d_m = nn.BatchNorm2d(128)
++        self.relu2d_m = nn.ReLU(inplace=True)
++
++        self.conv2d_2 = nn.Conv2d(128,64,3,padding=1)
++        self.bn2d_2 = nn.BatchNorm2d(64)
++        self.relu2d_2 = nn.ReLU(inplace=True)
++
++        #stage 1d
++        # self.conv1d_1 = nn.Conv2d(128,64,3,padding=1) # 256
++        # self.bn1d_1 = nn.BatchNorm2d(64)
++        # self.relu1d_1 = nn.ReLU(inplace=True)
++        #
++        # self.conv1d_m = nn.Conv2d(64,64,3,padding=1)###
++        # self.bn1d_m = nn.BatchNorm2d(64)
++        # self.relu1d_m = nn.ReLU(inplace=True)
++        #
++        # self.conv1d_2 = nn.Conv2d(64,64,3,padding=1)
++        # self.bn1d_2 = nn.BatchNorm2d(64)
++        # self.relu1d_2 = nn.ReLU(inplace=True)
++
++        ## -------------Bilinear Upsampling--------------
++        self.upscore6 = nn.Upsample(scale_factor=32, mode='bilinear', align_corners=True)###
++        self.upscore5 = nn.Upsample(scale_factor=16, mode='bilinear', align_corners=True)
++        self.upscore4 = nn.Upsample(scale_factor=8, mode='bilinear', align_corners=True)
++        self.upscore3 = nn.Upsample(scale_factor=4, mode='bilinear', align_corners=True)
++        self.upscore2 = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
++
++        ## -------------Side Output--------------
++        self.outconvb = nn.Conv2d(512,1,3,padding=1)
++        self.outconv6 = nn.Conv2d(512,1,3,padding=1)
++        self.outconv5 = nn.Conv2d(512,1,3,padding=1)
++        self.outconv4 = nn.Conv2d(256,1,3,padding=1)
++        self.outconv3 = nn.Conv2d(128,1,3,padding=1)
++        self.outconv2 = nn.Conv2d(64,1,3,padding=1)
++        # self.outconv1 = nn.Conv2d(64,1,3,padding=1)
++
++        ## -------------Refine Module-------------
++        #self.refunet = RefUnet(1,64)
++
++
++    def forward(self,x):
++
++        hx = x
++
++        ## -------------Encoder-------------
++        #hx = self.inconv(hx)
++        #hx = self.inbn(hx)
++        #hx = self.inrelu(hx)
++
++        h1 = self.encoder1(hx) # 128
++        h2 = self.encoder2(h1) # 64
++        h3 = self.encoder3(h2) # 32
++        h4 = self.encoder4(h3) # 16
++        h5 = self.encoder5(h4)  # 8
++
++        # hx = self.pool4(h4) # 16
++        #
++        # hx = self.resb5_1(hx)
++        # hx = self.resb5_2(hx)
++        # h5 = self.resb5_3(hx)
++
++        #hx = self.pool5(h5) # 8
++
++        #hx = self.resb6_1(hx)
++        #hx = self.resb6_2(hx)
++        #h6 = self.resb6_3(hx)
++
++        ## -------------Bridge-------------
++        hx = self.relubg_1(self.bnbg_1(self.convbg_1(h5))) # 8
++        #hx = self.relubg_m(self.bnbg_m(self.convbg_m(hx)))
++        hbg = self.relubg_2(self.bnbg_2(self.convbg_2(hx)))
++
++        ## -------------Decoder-------------
++
++        hx = self.relu6d_1(self.bn6d_1(self.conv6d_1(torch.cat((hbg,h5),1))))
++        #hx = self.relu6d_m(self.bn6d_m(self.conv6d_m(hx)))
++        hd5 = self.relu6d_2(self.bn6d_2(self.conv6d_2(hx)))
++
++        hx = self.upscore2(hd5) # 8 -> 16
++
++        hx = self.relu5d_1(self.bn5d_1(self.conv5d_1(torch.cat((hx,h4),1))))
++        #hx = self.relu5d_m(self.bn5d_m(self.conv5d_m(hx)))
++        hd4 = self.relu5d_2(self.bn5d_2(self.conv5d_2(hx)))
++
++        hx = self.upscore2(hd4) # 16 -> 32
++
++        hx = self.relu4d_1(self.bn4d_1(self.conv4d_1(torch.cat((hx,h3),1))))
++        #hx = self.relu4d_m(self.bn4d_m(self.conv4d_m(hx)))
++        hd3 = self.relu4d_2(self.bn4d_2(self.conv4d_2(hx)))
++
++        hx = self.upscore2(hd3) # 32 -> 64
++
++        hx = self.relu3d_1(self.bn3d_1(self.conv3d_1(torch.cat((hx,h2),1))))
++        #hx = self.relu3d_m(self.bn3d_m(self.conv3d_m(hx)))
++        hd2 = self.relu3d_2(self.bn3d_2(self.conv3d_2(hx)))
++
++        hx = self.upscore2(hd2) # 64 -> 128
++
++        hx = self.relu2d_1(self.bn2d_1(self.conv2d_1(torch.cat((hx,h1),1))))
++        #hx = self.relu2d_m(self.bn2d_m(self.conv2d_m(hx)))
++        hd1 = self.relu2d_2(self.bn2d_2(self.conv2d_2(hx)))
++
++        # hx = self.upscore2(hd2) # 128 -> 256
++        #
++        # hx = self.relu1d_1(self.bn1d_1(self.conv1d_1(torch.cat((hx,h1),1))))
++        # #hx = self.relu1d_m(self.bn1d_m(self.conv1d_m(hx)))
++        # hd1 = self.relu1d_2(self.bn1d_2(self.conv1d_2(hx)))
++
++        ## -------------Side Output-------------
++        # db = self.outconvb(hbg)
++        # db = self.upscore6(db) # 8->256
++        #
++        # # d6 = self.outconv6(hd5)
++        # # d6 = self.upscore6(d6) # 8->256
++        #
++        # d5 = self.outconv5(hd5)
++        # d5 = self.upscore6(d5) # 8->256
++        #
++        # d4 = self.outconv5(hd4)
++        # d4 = self.upscore5(d4) # 16->256
++        #
++        # d3 = self.outconv4(hd3)
++        # d3 = self.upscore4(d3) # 32->256
++        #
++        # d2 = self.outconv3(hd2)
++        # d2 = self.upscore3(d2) # 64->256
++
++        d1 = self.outconv2(hd1) # 128 -> 256
++        d1 = self.upscore2(d1)
++        ## -------------Refine Module-------------
++        #dout = self.refunet(d1) # 256
++
++        return F.sigmoid(d1)#, F.sigmoid(d2), F.sigmoid(d3), F.sigmoid(d4), F.sigmoid(d5), F.sigmoid(db)
+diff --git a/model/__pycache__/BASNet.cpython-36.pyc b/model/__pycache__/BASNet.cpython-36.pyc
+deleted file mode 100644
+index c6ce0e0..0000000
+Binary files a/model/__pycache__/BASNet.cpython-36.pyc and /dev/null differ
+diff --git a/model/resnet_model.py b/model/resnet_model.py
+index 5d7d82e..65b539a 100644
+--- a/model/resnet_model.py
++++ b/model/resnet_model.py
+@@ -4,7 +4,7 @@ import math
+ import torch.utils.model_zoo as model_zoo
+ import torch
+ import torchvision
+-
++#
+ # __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
+ #            'resnet152', 'ResNet34P','ResNet50S','ResNet50P','ResNet101P']
+ #
+diff --git a/test_data/test_results/0003.png b/test_data/test_results/0003.png
+deleted file mode 100644
+index f7bd90c..0000000
+Binary files a/test_data/test_results/0003.png and /dev/null differ
+diff --git a/test_data/test_results/0005.png b/test_data/test_results/0005.png
+deleted file mode 100644
+index ad627ef..0000000
+Binary files a/test_data/test_results/0005.png and /dev/null differ
+diff --git a/test_data/test_results/0010.png b/test_data/test_results/0010.png
+deleted file mode 100644
+index babe1b8..0000000
+Binary files a/test_data/test_results/0010.png and /dev/null differ
+diff --git a/test_data/test_results/0012.png b/test_data/test_results/0012.png
+deleted file mode 100644
+index 55ba083..0000000
+Binary files a/test_data/test_results/0012.png and /dev/null differ

@@ -1,0 +1,24 @@
+{
+    "os": "Linux-5.8.0-55-generic-x86_64-with-glibc2.10",
+    "python": "3.8.8",
+    "heartbeatAt": "2021-06-24T21:40:05.495806",
+    "startedAt": "2021-06-24T21:40:04.792451",
+    "docker": null,
+    "gpu": "GeForce RTX 3090",
+    "gpu_count": 2,
+    "cpu_count": 64,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "basnet_train.py",
+    "codePath": "basnet_train.py",
+    "git": {
+        "remote": "https://github.com/deephog/BASNet.git",
+        "commit": "04821e926f572a71439cc56d7ffc23d16df3a417"
+    },
+    "email": "easonsbox@outlook.com",
+    "root": "/home/hypevr/Desktop/data/projects/BASNet",
+    "host": "hypevr-hpc-02",
+    "username": "hypevr",
+    "executable": "/home/hypevr/anaconda3/envs/torch/bin/python"
+}

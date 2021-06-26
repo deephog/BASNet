@@ -5,17 +5,22 @@ import os
 from shutil import copyfile
 
 
-data_fold = 'train_data/ECSSD/'
+data_fold = '/home/hypevr/Desktop/data/projects/data/DUTS/DUTS-TE/'
 src = data_fold+'image/'
-img_ext = 'jpg'
+img_ext = '.jpg'
 
 mask_src = 'mask/'
 mask_ext = '.png'
 
-dst_image = 'human_img/'
-dst_mask = 'human_mask/'
+dst_image = 'nonhuman_img/'
+dst_mask = 'nonhuman_mask/'
 
-mtcnn = MTCNN(image_size=160)
+if not os.path.isdir(data_fold + dst_mask):
+    os.mkdir(data_fold + dst_mask)
+if not os.path.isdir(data_fold + dst_image):
+    os.mkdir(data_fold + dst_image)
+
+mtcnn = MTCNN(image_size=300)
 path, dirs, files = next(os.walk(src))
 
 for f in files:
@@ -25,8 +30,9 @@ for f in files:
         if len(array_img.shape) > 2:
             detected, prob = mtcnn.detect(img)
             print(f, 'prob:', prob)
-            if prob[0]:
-                if max(prob) > 0.995:
-                    copyfile(src + f, data_fold + dst_image + f)
-                    copyfile(data_fold + mask_src + f.split('.')[0] + mask_ext, data_fold + dst_mask + f.split('.')[0] + mask_ext)
+            if not prob[0]:
+                #if max(prob) < 0.5:
+                copyfile(src + f, data_fold + dst_image + f)
+                copyfile(data_fold + mask_src + f.split('.')[0] + mask_ext, data_fold + dst_mask + f.split('.')[0] + mask_ext)
+            #else:
 

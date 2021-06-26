@@ -38,13 +38,7 @@ class RescaleT(object):
 		# lbl = transform.resize(label,(new_h,new_w),mode='constant', order=0, preserve_range=True)
 		#print(h, w)
 		img = transform.resize(image,(self.output_size, self.output_size),mode='constant', anti_aliasing=False)
-		#print('rescale')
-		#print(image[:, :, 0])
-		#print(img[:, :, 0])
-		#print(img[0, :, 0])
-		#print(img[:, 0, 0])
-		
-		
+
 		lbl = transform.resize(label,(self.output_size,self.output_size),mode='constant', order=0, preserve_range=True)
 
 		return {'image':img,'label':lbl}
@@ -261,7 +255,21 @@ class OtherTrans(object):
 
 	def __call__(self, sample):
 		image, label = sample['image'], sample['label']
+		print(image.shape)
+		print(np.unique(image))
+		w, h, c = image.shape
+		back = np.asarray(Image.open('back.jpg'))
+		back = transform.resize(back, (w, h), order=1, mode='constant')
+		#io.imsave('back.jpg', back)
+		#back = np.transpose(back, (2,0,1))
+		olay = image.copy()
+		#image_tran = np.transpose(image, (1, 2, 0))
+		#olay[image_tran[:, :] == (0, 0, 0)] = back
+		compare = np.all(image == (0, 0, 0), axis=-1)
+		olay[compare] = back[compare]
 
+		io.imsave('olay.jpg', olay)
+		input('wait')
 		#FLP = transforms.RandomHorizontalFlip()
 		#RPe = transforms.RandomPerspective(distortion_scale=0.1, p=0.5)
 		#RRo = transforms.RandomRotation(90)

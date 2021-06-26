@@ -1,0 +1,41 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.10.31
+    code_path: code/basnet_train.py
+    framework: torch
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    python_version: 3.8.8
+    t:
+      1:
+      - 1
+      2:
+      - 1
+      4: 3.8.8
+      5: 0.10.31
+      8:
+      - 5
+batch_size:
+  desc: null
+  value: 16
+checkpoint:
+  desc: null
+  value: false
+epochs:
+  desc: null
+  value: 1000
+gpu:
+  desc: null
+  value: '1'
+learning_rate:
+  desc: null
+  value: 0.002
+load_pretrained:
+  desc: null
+  value: true
+model_dir:
+  desc: null
+  value: ./saved_models/basnet_bsi_refine_red/

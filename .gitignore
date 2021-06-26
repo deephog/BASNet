@@ -49,6 +49,8 @@ __pycache__/
 *$py.class
 docs/source/examples
 *.pt
+*.onnx
+*.engine
 
 # C extensions
 *.so
