@@ -141,7 +141,8 @@ class test_dataset:
         self.transform = transforms.Compose([
             transforms.Resize((self.testsize, self.testsize)),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            ])
         self.gt_transform = transforms.ToTensor()
         self.size = len(self.images)
         self.index = 0
@@ -149,9 +150,14 @@ class test_dataset:
 
     def load_data(self):
         image = self.rgb_loader(self.images[self.index])
+        #print(image.shape)
+        #print(np.asarray(image)[100:104, 100:105, :])
+        #input('wait')
         if self.orig:
             image_orig = image.copy()
+        print(np.asarray(image).shape)
         image = self.transform(image).unsqueeze(0)
+        print(image.shape)
         gt = self.binary_loader(self.gts[self.index])
         name = self.images[self.index].split('/')[-1]
         # if name.endswith('.jpg'):
@@ -163,9 +169,10 @@ class test_dataset:
             return image, gt, name
 
     def rgb_loader(self, path):
-        with open(path, 'rb') as f:
-            img = Image.open(f)
-            return img.convert('RGB')
+        #with open(path, 'rb') as f:
+        img = cv2.imread(path)#Image.open(f)
+        
+        return img.convert('RGB')
 
     def binary_loader(self, path):
         with open(path, 'rb') as f:

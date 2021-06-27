@@ -173,13 +173,15 @@ def main(makeengine=False):
     test_loader = test_dataset(image_dir, image_dir, 352, True)
     for i in range(test_loader.size):
         image_orig, host_input, gt, name = test_loader.load_data()
+        # print(np.mean(host_input.numpy()[0, 1, :, :]), np.mean(host_input.numpy()[0, 0, :, :]), np.mean(host_input.numpy()[0, 2, :, :]))
+        # input('wait')
         host_input = host_input.numpy()
-        print(host_input.shape)
+
         host_input = np.tile(host_input, (1, 1, 1, 1))
         host_input = np.transpose(host_input, (0, 1, 2, 3))
         #host_input = host_input.transpose((0, 3, 1, 2))
         host_input = np.array(host_input, order='C')
-        print(host_input.shape)
+
         #host_input = Variable(host_input)
         #print(host_input)
         ##inputs_test = data_test[0]
@@ -200,4 +202,4 @@ def main(makeengine=False):
 
 if __name__ == "__main__":
     # execute only if run as a script
-    main(True)
+    main(False)
